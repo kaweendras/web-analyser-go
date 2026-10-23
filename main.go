@@ -4,15 +4,33 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
-	"os"
 	"net/url"
+	"os"
 )
 
 // Parse the HTML template for the main page
 var pageTemplate = template.Must(template.ParseFiles("templates/index.html"))
 
+type PageData struct {
+	URL   string
+	Error string
+}
+
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	err := pageTemplate.Execute(w, nil)
+	data := PageData{}
+
+	if r.Method == http.MethodPost {
+		data.URL = r.FormValue("url")
+
+		parsedURL, parseErr := url.ParseRequestURI(data.URL)
+		if parseErr != nil ||
+			parsedURL.Host == "" ||
+			(parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+			data.Error = "Please enter a valid HTTP or HTTPS URL."
+		}
+	}
+
+	err := pageTemplate.Execute(w, data)
 	if err != nil {
 		slog.Error("Failed to render template", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
