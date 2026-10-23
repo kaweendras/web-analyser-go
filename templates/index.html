@@ -92,9 +92,12 @@
 		<h1>Web Page Analyzer</h1>
 		<form method="post" action="/">
 			<label for="url">Web page URL</label>
-			<input id="url" name="url" type="url" placeholder="https://example.com" required>
+			<input id="url" name="url" type="url" placeholder="https://example.com" value="{{.URL}}" required>
 			<button type="submit">Analyze</button>
 		</form>
+        {{if .Error}}
+        <p role="alert">{{.Error}}</p>
+        {{end}}
 	</main>
 </body>
 </html>
