@@ -1,14 +1,22 @@
 package main
 
 import (
-	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
+	"net/url"
 )
 
+// Parse the HTML template for the main page
+var pageTemplate = template.Must(template.ParseFiles("templates/index.html"))
+
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Web Page Analyzer")
+	err := pageTemplate.Execute(w, nil)
+	if err != nil {
+		slog.Error("Failed to render template", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func main() {
