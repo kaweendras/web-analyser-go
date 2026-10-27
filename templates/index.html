@@ -98,6 +98,27 @@
         {{if .Error}}
         <p role="alert">{{.Error}}</p>
         {{end}}
+		{{if .Result}}
+		<section aria-labelledby="results-title">
+			<h2 id="results-title">Analysis results</h2>
+			<dl>
+				<dt>Analyzed URL</dt><dd>{{.Result.URL}}</dd>
+				<dt>HTML version</dt><dd>{{.Result.HTMLVersion}}</dd>
+				<dt>Page title</dt><dd>{{if .Result.Title}}{{.Result.Title}}{{else}}No title{{end}}</dd>
+				<dt>H1 headings</dt><dd>{{index .Result.Headings 0}}</dd>
+				<dt>H2 headings</dt><dd>{{index .Result.Headings 1}}</dd>
+				<dt>H3 headings</dt><dd>{{index .Result.Headings 2}}</dd>
+				<dt>H4 headings</dt><dd>{{index .Result.Headings 3}}</dd>
+				<dt>H5 headings</dt><dd>{{index .Result.Headings 4}}</dd>
+				<dt>H6 headings</dt><dd>{{index .Result.Headings 5}}</dd>
+				<dt>Internal links</dt><dd>{{.Result.InternalLinks}}</dd>
+				<dt>External links</dt><dd>{{.Result.ExternalLinks}}</dd>
+				<dt>Unique links checked</dt><dd>{{.Result.CheckedLinks}}</dd>
+				<dt>Inaccessible links</dt><dd>{{.Result.InaccessibleLinks}}</dd>
+				<dt>Login form</dt><dd>{{if .Result.HasLoginForm}}Yes{{else}}No{{end}}</dd>
+			</dl>
+		</section>
+		{{end}}
 	</main>
 </body>
 </html>
