@@ -40,8 +40,8 @@ type pageData struct {
 type streamEvent struct {
 	Type      string           `json:"type"`
 	Message   string           `json:"message,omitempty"`
-	Completed int              `json:"completed,omitempty"`
-	Total     int              `json:"total,omitempty"`
+	Completed int              `json:"completed"`
+	Total     int              `json:"total"`
 	Result    *analyzer.Result `json:"result,omitempty"`
 }
 
@@ -94,6 +94,7 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	submittedURL := strings.TrimSpace(r.FormValue("url"))
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -141,7 +142,7 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.analyzer.AnalyzeWithProgress(
 		analysisContext,
-		strings.TrimSpace(r.FormValue("url")),
+		submittedURL,
 		progress,
 	)
 	if streamErr != nil {

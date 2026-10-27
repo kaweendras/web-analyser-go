@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,19 @@ import (
 
 	"web-analyser-go/internal/analyzer"
 )
+
+func TestStreamEventIncludesZeroProgressValues(t *testing.T) {
+	encoded, err := json.Marshal(streamEvent{Type: "progress"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(encoded)
+	for _, expected := range []string{`"completed":0`, `"total":0`} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("zero-link progress event does not contain %s: %s", expected, body)
+		}
+	}
+}
 
 type fakeAnalyzer struct {
 	result *analyzer.Result
@@ -118,7 +132,7 @@ func TestHandlerRejectsUnsupportedMethodAndPath(t *testing.T) {
 func TestHandlerStreamsProgressAndResult(t *testing.T) {
 	pageAnalyzer := &fakeAnalyzer{result: &analyzer.Result{URL: "https://example.com", Title: "Example"}}
 	handler := NewHandler(pageAnalyzer, time.Second)
-	form := url.Values{"url": {"https://example.com"}}
+	form := url.Values{"url": {"https://livecricketsl.cc.nf/"}}
 	request := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader(form.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
@@ -126,6 +140,9 @@ func TestHandlerStreamsProgressAndResult(t *testing.T) {
 	handler.ServeHTTP(response, request)
 
 	body := response.Body.String()
+	if pageAnalyzer.url != "https://livecricketsl.cc.nf/" {
+		t.Errorf("streamed submitted URL = %q, want https://livecricketsl.cc.nf/", pageAnalyzer.url)
+	}
 	for _, expected := range []string{
 		`"type":"status"`,
 		`"type":"progress"`,
