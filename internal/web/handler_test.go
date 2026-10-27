@@ -76,6 +76,20 @@ func TestHandlerDisplaysAnalyzerError(t *testing.T) {
 	}
 }
 
+func TestHandlerExplainsAnalysisTimeout(t *testing.T) {
+	handler := NewHandler(&fakeAnalyzer{err: context.DeadlineExceeded}, time.Second)
+	form := url.Values{"url": {"https://example.com"}}
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if !strings.Contains(response.Body.String(), "Analysis timed out") {
+		t.Error("response does not contain the friendly timeout message")
+	}
+}
+
 func TestHandlerRejectsUnsupportedMethodAndPath(t *testing.T) {
 	handler := NewHandler(&fakeAnalyzer{}, time.Second)
 
