@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	linkWorkers    = 10
+	maxLinkWorkers = 20
 	requestTimeout = 8 * time.Second
-	analysisLimit  = 45 * time.Second
+	analysisLimit  = 2 * time.Minute
 )
 
 func main() {
@@ -25,11 +25,11 @@ func main() {
 		Timeout: requestTimeout,
 		Transport: &http.Transport{
 			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: linkWorkers,
+			MaxIdleConnsPerHost: maxLinkWorkers,
 			IdleConnTimeout:     90 * time.Second,
 		},
 	}
-	checker := linkchecker.New(client, linkWorkers)
+	checker := linkchecker.New(client, maxLinkWorkers)
 	pageAnalyzer := analyzer.New(client, checker)
 
 	mux := http.NewServeMux()
@@ -40,12 +40,12 @@ func main() {
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       60 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		WriteTimeout:      analysisLimit + 15*time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {
-		slog.Info("Starting server", "address", "http://localhost:8080", "link_workers", linkWorkers)
+		slog.Info("Starting server", "address", "http://localhost:8080", "max_link_workers", maxLinkWorkers)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server failed", "error", err)
 			os.Exit(1)
