@@ -57,12 +57,22 @@ func TestPoolChecks450LinksWithBoundedConcurrency(t *testing.T) {
 	})
 
 	pool := New(&http.Client{Transport: transport}, 20)
-	results, err := pool.Check(context.Background(), links)
+	progressCalls := 0
+	lastCompleted := 0
+	lastTotal := 0
+	results, err := pool.Check(context.Background(), links, func(completed, total int) {
+		progressCalls++
+		lastCompleted = completed
+		lastTotal = total
+	})
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
 	if len(results) != len(links) {
 		t.Fatalf("result count = %d, want %d", len(results), len(links))
+	}
+	if progressCalls != len(links)+1 || lastCompleted != len(links) || lastTotal != len(links) {
+		t.Errorf("progress calls=%d final=%d/%d, want %d calls and %d/%d", progressCalls, lastCompleted, lastTotal, len(links)+1, len(links), len(links))
 	}
 	if maximum.Load() > expectedWorkers {
 		t.Errorf("maximum concurrency = %d, want at most %d", maximum.Load(), expectedWorkers)
@@ -119,7 +129,7 @@ func TestPoolFallsBackToGet(t *testing.T) {
 	})
 
 	results, err := New(&http.Client{Transport: transport}, 1).
-		Check(context.Background(), []string{"https://example.com/page"})
+		Check(context.Background(), []string{"https://example.com/page"}, nil)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
@@ -140,7 +150,7 @@ func TestPoolHonorsCancellation(t *testing.T) {
 	cancel()
 
 	_, err := New(&http.Client{Transport: transport}, 2).
-		Check(ctx, []string{"https://one.test", "https://two.test"})
+		Check(ctx, []string{"https://one.test", "https://two.test"}, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}

@@ -18,8 +18,11 @@ const maxPageSize = 10 << 20 // 10 MiB
 
 // LinkChecker is implemented by the bounded link-checking worker pool.
 type LinkChecker interface {
-	Check(context.Context, []string) ([]linkchecker.Result, error)
+	Check(context.Context, []string, linkchecker.ProgressFunc) ([]linkchecker.Result, error)
 }
+
+// ProgressFunc receives completed and total unique-link counts.
+type ProgressFunc func(completed, total int)
 
 // Analyzer fetches and analyzes a single web page.
 type Analyzer struct {
@@ -29,15 +32,15 @@ type Analyzer struct {
 
 // Result contains the requested analysis of one web page.
 type Result struct {
-	URL               string
-	HTMLVersion       string
-	Title             string
-	Headings          [6]int
-	InternalLinks     int
-	ExternalLinks     int
-	CheckedLinks      int
-	InaccessibleLinks int
-	HasLoginForm      bool
+	URL               string `json:"url"`
+	HTMLVersion       string `json:"htmlVersion"`
+	Title             string `json:"title"`
+	Headings          [6]int `json:"headings"`
+	InternalLinks     int    `json:"internalLinks"`
+	ExternalLinks     int    `json:"externalLinks"`
+	CheckedLinks      int    `json:"checkedLinks"`
+	InaccessibleLinks int    `json:"inaccessibleLinks"`
+	HasLoginForm      bool   `json:"hasLoginForm"`
 }
 
 // FetchError describes a failure to fetch the submitted page.
@@ -64,6 +67,11 @@ func New(client *http.Client, linkChecker LinkChecker) *Analyzer {
 
 // Analyze fetches and analyzes the submitted page, then checks its unique links.
 func (a *Analyzer) Analyze(ctx context.Context, rawURL string) (*Result, error) {
+	return a.AnalyzeWithProgress(ctx, rawURL, nil)
+}
+
+// AnalyzeWithProgress analyzes a page and reports link-checking progress.
+func (a *Analyzer) AnalyzeWithProgress(ctx context.Context, rawURL string, progress ProgressFunc) (*Result, error) {
 	requestedURL, err := validateWebURL(rawURL)
 	if err != nil {
 		return nil, err
@@ -102,7 +110,13 @@ func (a *Analyzer) Analyze(ctx context.Context, rawURL string) (*Result, error) 
 	result.URL = pageURL.String()
 	result.CheckedLinks = len(links)
 
-	checks, err := a.linkChecker.Check(ctx, links)
+	var linkProgress linkchecker.ProgressFunc
+	if progress != nil {
+		linkProgress = func(completed, total int) {
+			progress(completed, total)
+		}
+	}
+	checks, err := a.linkChecker.Check(ctx, links, linkProgress)
 	if err != nil {
 		return nil, fmt.Errorf("check links: %w", err)
 	}

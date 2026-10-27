@@ -37,8 +37,11 @@ type fakeChecker struct {
 	err     error
 }
 
-func (f *fakeChecker) Check(_ context.Context, links []string) ([]linkchecker.Result, error) {
+func (f *fakeChecker) Check(_ context.Context, links []string, progress linkchecker.ProgressFunc) ([]linkchecker.Result, error) {
 	f.links = append([]string(nil), links...)
+	if progress != nil {
+		progress(len(links), len(links))
+	}
 	return f.results, f.err
 }
 
@@ -57,8 +60,13 @@ func TestAnalyzePage(t *testing.T) {
 		{URL: "https://outside.test/page", StatusCode: http.StatusNotFound},
 	}}
 
+	progressCompleted := 0
+	progressTotal := 0
 	result, err := New(&http.Client{Transport: transport}, checker).
-		Analyze(context.Background(), "https://example.com")
+		AnalyzeWithProgress(context.Background(), "https://example.com", func(completed, total int) {
+			progressCompleted = completed
+			progressTotal = total
+		})
 	if err != nil {
 		t.Fatalf("Analyze() error = %v", err)
 	}
@@ -79,6 +87,9 @@ func TestAnalyzePage(t *testing.T) {
 	}
 	if result.InaccessibleLinks != 1 {
 		t.Errorf("inaccessible links = %d, want 1", result.InaccessibleLinks)
+	}
+	if progressCompleted != 2 || progressTotal != 2 {
+		t.Errorf("progress = %d/%d, want 2/2", progressCompleted, progressTotal)
 	}
 }
 

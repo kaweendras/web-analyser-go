@@ -40,44 +40,166 @@
 		input { background: #202020; color: #ededed; }
 		button { margin-top: 8px; border-color: transparent; background: #b4e3c1; color: #14251a; font-weight: 600; cursor: pointer; }
 		button:hover { background: #c9efd3; }
+		button:disabled { cursor: wait; opacity: 0.65; }
 		input:focus-visible, button:focus-visible { outline: 2px solid #b4e3c1; outline-offset: 3px; }
 		[role="alert"] { color: #ffb4ab; }
 		section { margin-top: 32px; }
 		dl { display: grid; grid-template-columns: minmax(150px, auto) 1fr; gap: 8px 24px; }
 		dt { color: #bdbdbd; }
 		dd { margin: 0; overflow-wrap: anywhere; }
+		[hidden] { display: none !important; }
+
+		.progress-header {
+			display: flex;
+			justify-content: space-between;
+			gap: 16px;
+			margin-bottom: 10px;
+			color: #bdbdbd;
+			font-size: 14px;
+		}
+
+		progress {
+			width: 100%;
+			height: 14px;
+			accent-color: #b4e3c1;
+		}
+
+		@media (max-width: 520px) {
+			dl { grid-template-columns: 1fr; gap: 4px; }
+			dd { margin-bottom: 12px; }
+		}
 	</style>
 </head>
 <body>
 	<main>
 		<h1>Web Page Analyzer</h1>
-		<form method="post" action="/">
+		<form id="analyze-form" method="post" action="/">
 			<label for="url">Web page URL</label>
 			<input id="url" name="url" type="url" placeholder="https://example.com" value="{{.URL}}" required>
-			<button type="submit">Analyze</button>
+			<button id="analyze-button" type="submit">Analyze</button>
 		</form>
-		{{if .Error}}<p role="alert">{{.Error}}</p>{{end}}
-		{{if .Result}}
-		<section aria-labelledby="results-title">
+		<p id="error-message" role="alert" {{if not .Error}}hidden{{end}}>{{.Error}}</p>
+
+		<section id="analysis-progress" aria-labelledby="progress-title" hidden>
+			<div class="progress-header">
+				<span id="progress-title">Preparing analysis</span>
+				<span id="progress-count"></span>
+			</div>
+			<progress id="progress-bar" aria-describedby="progress-count"></progress>
+		</section>
+
+		<section id="analysis-results" aria-labelledby="results-title" {{if not .Result}}hidden{{end}}>
 			<h2 id="results-title">Analysis results</h2>
 			<dl>
-				<dt>Analyzed URL</dt><dd>{{.Result.URL}}</dd>
-				<dt>HTML version</dt><dd>{{.Result.HTMLVersion}}</dd>
-				<dt>Page title</dt><dd>{{if .Result.Title}}{{.Result.Title}}{{else}}No title{{end}}</dd>
-				<dt>H1 headings</dt><dd>{{index .Result.Headings 0}}</dd>
-				<dt>H2 headings</dt><dd>{{index .Result.Headings 1}}</dd>
-				<dt>H3 headings</dt><dd>{{index .Result.Headings 2}}</dd>
-				<dt>H4 headings</dt><dd>{{index .Result.Headings 3}}</dd>
-				<dt>H5 headings</dt><dd>{{index .Result.Headings 4}}</dd>
-				<dt>H6 headings</dt><dd>{{index .Result.Headings 5}}</dd>
-				<dt>Internal links</dt><dd>{{.Result.InternalLinks}}</dd>
-				<dt>External links</dt><dd>{{.Result.ExternalLinks}}</dd>
-				<dt>Unique links checked</dt><dd>{{.Result.CheckedLinks}}</dd>
-				<dt>Inaccessible links</dt><dd>{{.Result.InaccessibleLinks}}</dd>
-				<dt>Login form</dt><dd>{{if .Result.HasLoginForm}}Yes{{else}}No{{end}}</dd>
+				<dt>Analyzed URL</dt><dd id="result-url">{{with .Result}}{{.URL}}{{end}}</dd>
+				<dt>HTML version</dt><dd id="result-html-version">{{with .Result}}{{.HTMLVersion}}{{end}}</dd>
+				<dt>Page title</dt><dd id="result-title">{{with .Result}}{{if .Title}}{{.Title}}{{else}}No title{{end}}{{end}}</dd>
+				<dt>H1 headings</dt><dd id="result-h1">{{with .Result}}{{index .Headings 0}}{{end}}</dd>
+				<dt>H2 headings</dt><dd id="result-h2">{{with .Result}}{{index .Headings 1}}{{end}}</dd>
+				<dt>H3 headings</dt><dd id="result-h3">{{with .Result}}{{index .Headings 2}}{{end}}</dd>
+				<dt>H4 headings</dt><dd id="result-h4">{{with .Result}}{{index .Headings 3}}{{end}}</dd>
+				<dt>H5 headings</dt><dd id="result-h5">{{with .Result}}{{index .Headings 4}}{{end}}</dd>
+				<dt>H6 headings</dt><dd id="result-h6">{{with .Result}}{{index .Headings 5}}{{end}}</dd>
+				<dt>Internal links</dt><dd id="result-internal">{{with .Result}}{{.InternalLinks}}{{end}}</dd>
+				<dt>External links</dt><dd id="result-external">{{with .Result}}{{.ExternalLinks}}{{end}}</dd>
+				<dt>Unique links checked</dt><dd id="result-checked">{{with .Result}}{{.CheckedLinks}}{{end}}</dd>
+				<dt>Inaccessible links</dt><dd id="result-inaccessible">{{with .Result}}{{.InaccessibleLinks}}{{end}}</dd>
+				<dt>Login form</dt><dd id="result-login">{{with .Result}}{{if .HasLoginForm}}Yes{{else}}No{{end}}{{end}}</dd>
 			</dl>
 		</section>
-		{{end}}
 	</main>
+
+	<script>
+		(() => {
+			const form = document.querySelector("#analyze-form");
+			if (!window.fetch || !window.ReadableStream || !form) return;
+
+			const button = document.querySelector("#analyze-button");
+			const errorMessage = document.querySelector("#error-message");
+			const progressSection = document.querySelector("#analysis-progress");
+			const progressTitle = document.querySelector("#progress-title");
+			const progressCount = document.querySelector("#progress-count");
+			const progressBar = document.querySelector("#progress-bar");
+			const resultsSection = document.querySelector("#analysis-results");
+
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault();
+				button.disabled = true;
+				button.textContent = "Analyzing…";
+				errorMessage.hidden = true;
+				resultsSection.hidden = true;
+				progressSection.hidden = false;
+				progressTitle.textContent = "Fetching and parsing the page";
+				progressCount.textContent = "";
+				progressBar.removeAttribute("value");
+
+				try {
+					const response = await fetch("/api/analyze", {
+						method: "POST",
+						body: new URLSearchParams(new FormData(form))
+					});
+					if (!response.ok || !response.body) throw new Error("Unable to start analysis.");
+
+					const reader = response.body.getReader();
+					const decoder = new TextDecoder();
+					let buffer = "";
+
+					while (true) {
+						const { value, done } = await reader.read();
+						buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+						let newline;
+						while ((newline = buffer.indexOf("\n")) >= 0) {
+							const line = buffer.slice(0, newline).trim();
+							buffer = buffer.slice(newline + 1);
+							if (line) handleStreamEvent(JSON.parse(line));
+						}
+						if (done) break;
+					}
+				} catch (error) {
+					errorMessage.textContent = error.message || "Analysis failed.";
+					errorMessage.hidden = false;
+					progressSection.hidden = true;
+				} finally {
+					button.disabled = false;
+					button.textContent = "Analyze";
+				}
+			});
+
+			function handleStreamEvent(event) {
+				if (event.type === "status") {
+					progressTitle.textContent = event.message;
+					return;
+				}
+				if (event.type === "progress") {
+					progressTitle.textContent = "Checking link accessibility";
+					progressBar.max = Math.max(event.total, 1);
+					progressBar.value = event.completed;
+					progressCount.textContent = `${event.completed.toLocaleString()} / ${event.total.toLocaleString()}`;
+					return;
+				}
+				if (event.type === "error") throw new Error(event.message);
+				if (event.type === "result") showResult(event.result);
+			}
+
+			function showResult(result) {
+				progressTitle.textContent = "Analysis complete";
+				progressBar.value = progressBar.max;
+				setText("result-url", result.url);
+				setText("result-html-version", result.htmlVersion);
+				setText("result-title", result.title || "No title");
+				result.headings.forEach((count, index) => setText(`result-h${index + 1}`, count));
+				setText("result-internal", result.internalLinks);
+				setText("result-external", result.externalLinks);
+				setText("result-checked", result.checkedLinks);
+				setText("result-inaccessible", result.inaccessibleLinks);
+				setText("result-login", result.hasLoginForm ? "Yes" : "No");
+				resultsSection.hidden = false;
+			}
+
+			function setText(id, value) {
+				document.getElementById(id).textContent = value;
+			}
+		})();
+	</script>
 </body>
 </html>

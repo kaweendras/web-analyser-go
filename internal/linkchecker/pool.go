@@ -32,13 +32,22 @@ func New(client *http.Client, maxWorkers int) *Pool {
 	return &Pool{client: client, maxWorkers: maxWorkers}
 }
 
+// ProgressFunc receives completed and total link counts.
+type ProgressFunc func(completed, total int)
+
 // Check checks every supplied URL once and returns one result per URL.
-func (p *Pool) Check(ctx context.Context, links []string) ([]Result, error) {
+func (p *Pool) Check(ctx context.Context, links []string, progress ProgressFunc) ([]Result, error) {
 	if len(links) == 0 {
+		if progress != nil {
+			progress(0, 0)
+		}
 		return nil, nil
 	}
 
 	workerCount := p.workerCount(len(links))
+	if progress != nil {
+		progress(0, len(links))
+	}
 
 	jobs := make(chan string)
 	results := make(chan Result, len(links))
@@ -73,6 +82,9 @@ func (p *Pool) Check(ctx context.Context, links []string) ([]Result, error) {
 	checked := make([]Result, 0, len(links))
 	for result := range results {
 		checked = append(checked, result)
+		if progress != nil {
+			progress(len(checked), len(links))
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
