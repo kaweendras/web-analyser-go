@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"embed"
+	"errors"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -55,7 +56,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		result, err := h.analyzer.Analyze(analysisContext, data.URL)
 		if err != nil {
-			data.Error = err.Error()
+			if errors.Is(err, context.DeadlineExceeded) {
+				data.Error = "Analysis timed out because some links responded too slowly. Please try again."
+			} else {
+				data.Error = err.Error()
+			}
 		} else {
 			data.Result = result
 		}
