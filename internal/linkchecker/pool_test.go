@@ -30,7 +30,7 @@ func response(request *http.Request, status int) *http.Response {
 }
 
 func TestPoolChecks450LinksWithBoundedConcurrency(t *testing.T) {
-	const workerCount = 10
+	const expectedWorkers = 10
 	links := make([]string, 450)
 	for index := range links {
 		links[index] = fmt.Sprintf("https://example.com/page/%d", index)
@@ -56,7 +56,7 @@ func TestPoolChecks450LinksWithBoundedConcurrency(t *testing.T) {
 		return response(request, status), nil
 	})
 
-	pool := New(&http.Client{Transport: transport}, workerCount)
+	pool := New(&http.Client{Transport: transport}, 20)
 	results, err := pool.Check(context.Background(), links)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
@@ -64,8 +64,8 @@ func TestPoolChecks450LinksWithBoundedConcurrency(t *testing.T) {
 	if len(results) != len(links) {
 		t.Fatalf("result count = %d, want %d", len(results), len(links))
 	}
-	if maximum.Load() > workerCount {
-		t.Errorf("maximum concurrency = %d, want at most %d", maximum.Load(), workerCount)
+	if maximum.Load() > expectedWorkers {
+		t.Errorf("maximum concurrency = %d, want at most %d", maximum.Load(), expectedWorkers)
 	}
 	if maximum.Load() < 2 {
 		t.Errorf("maximum concurrency = %d, expected concurrent checks", maximum.Load())
@@ -79,6 +79,29 @@ func TestPoolChecks450LinksWithBoundedConcurrency(t *testing.T) {
 	}
 	if inaccessible != 1 {
 		t.Errorf("inaccessible count = %d, want 1", inaccessible)
+	}
+}
+
+func TestWorkerCountScalesWithUniqueLinks(t *testing.T) {
+	pool := New(&http.Client{}, 20)
+	tests := []struct {
+		links int
+		want  int
+	}{
+		{links: 1, want: 1},
+		{links: 100, want: 5},
+		{links: 101, want: 10},
+		{links: 500, want: 10},
+		{links: 501, want: 15},
+		{links: 1500, want: 15},
+		{links: 1501, want: 20},
+		{links: 2524, want: 20},
+	}
+
+	for _, test := range tests {
+		if got := pool.workerCount(test.links); got != test.want {
+			t.Errorf("workerCount(%d) = %d, want %d", test.links, got, test.want)
+		}
 	}
 }
 
