@@ -20,16 +20,16 @@ func (r Result) Accessible() bool {
 
 // Pool checks links with a fixed number of workers.
 type Pool struct {
-	client  *http.Client
-	workers int
+	client     *http.Client
+	maxWorkers int
 }
 
 // New creates a link-checking worker pool.
-func New(client *http.Client, workers int) *Pool {
-	if workers < 1 {
-		workers = 1
+func New(client *http.Client, maxWorkers int) *Pool {
+	if maxWorkers < 1 {
+		maxWorkers = 1
 	}
-	return &Pool{client: client, workers: workers}
+	return &Pool{client: client, maxWorkers: maxWorkers}
 }
 
 // Check checks every supplied URL once and returns one result per URL.
@@ -38,10 +38,7 @@ func (p *Pool) Check(ctx context.Context, links []string) ([]Result, error) {
 		return nil, nil
 	}
 
-	workerCount := p.workers
-	if workerCount > len(links) {
-		workerCount = len(links)
-	}
+	workerCount := p.workerCount(len(links))
 
 	jobs := make(chan string)
 	results := make(chan Result, len(links))
@@ -81,6 +78,26 @@ func (p *Pool) Check(ctx context.Context, links []string) ([]Result, error) {
 		return nil, err
 	}
 	return checked, nil
+}
+
+func (p *Pool) workerCount(linkCount int) int {
+	target := 5
+	switch {
+	case linkCount > 1500:
+		target = 20
+	case linkCount > 500:
+		target = 15
+	case linkCount > 100:
+		target = 10
+	}
+
+	if target > p.maxWorkers {
+		target = p.maxWorkers
+	}
+	if target > linkCount {
+		target = linkCount
+	}
+	return target
 }
 
 func (p *Pool) checkOne(ctx context.Context, link string) Result {
