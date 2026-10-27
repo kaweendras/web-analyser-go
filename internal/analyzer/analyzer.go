@@ -1,4 +1,4 @@
-package main
+package analyzer
 
 import (
 	"context"
@@ -8,19 +8,27 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 
 	"golang.org/x/net/html"
+
+	"web-analyser-go/internal/linkchecker"
 )
 
 const maxPageSize = 10 << 20 // 10 MiB
 
-type Analyzer struct {
-	client  *http.Client
-	workers int
+// LinkChecker is implemented by the bounded link-checking worker pool.
+type LinkChecker interface {
+	Check(context.Context, []string) ([]linkchecker.Result, error)
 }
 
-type AnalysisResult struct {
+// Analyzer fetches and analyzes a single web page.
+type Analyzer struct {
+	client      *http.Client
+	linkChecker LinkChecker
+}
+
+// Result contains the requested analysis of one web page.
+type Result struct {
 	URL               string
 	HTMLVersion       string
 	Title             string
@@ -32,6 +40,7 @@ type AnalysisResult struct {
 	HasLoginForm      bool
 }
 
+// FetchError describes a failure to fetch the submitted page.
 type FetchError struct {
 	StatusCode int
 	Err        error
@@ -48,28 +57,13 @@ func (e *FetchError) Unwrap() error {
 	return e.Err
 }
 
-func NewAnalyzer(client *http.Client, workers int) *Analyzer {
-	if workers < 1 {
-		workers = 1
-	}
-	return &Analyzer{client: client, workers: workers}
+// New creates a page analyzer using the supplied HTTP client and link checker.
+func New(client *http.Client, linkChecker LinkChecker) *Analyzer {
+	return &Analyzer{client: client, linkChecker: linkChecker}
 }
 
-func validateWebURL(rawURL string) (*url.URL, error) {
-	parsedURL, err := url.ParseRequestURI(strings.TrimSpace(rawURL))
-	if err != nil {
-		return nil, errors.New("enter a valid URL")
-	}
-	if parsedURL.Host == "" {
-		return nil, errors.New("URL must include a hostname")
-	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, errors.New("URL must use HTTP or HTTPS")
-	}
-	return parsedURL, nil
-}
-
-func (a *Analyzer) Analyze(ctx context.Context, rawURL string) (*AnalysisResult, error) {
+// Analyze fetches and analyzes the submitted page, then checks its unique links.
+func (a *Analyzer) Analyze(ctx context.Context, rawURL string) (*Result, error) {
 	requestedURL, err := validateWebURL(rawURL)
 	if err != nil {
 		return nil, err
@@ -107,16 +101,36 @@ func (a *Analyzer) Analyze(ctx context.Context, rawURL string) (*AnalysisResult,
 	result, links := inspectDocument(document, pageURL)
 	result.URL = pageURL.String()
 	result.CheckedLinks = len(links)
-	result.InaccessibleLinks, err = a.countInaccessibleLinks(ctx, links)
+
+	checks, err := a.linkChecker.Check(ctx, links)
 	if err != nil {
 		return nil, fmt.Errorf("check links: %w", err)
+	}
+	for _, check := range checks {
+		if !check.Accessible() {
+			result.InaccessibleLinks++
+		}
 	}
 
 	return result, nil
 }
 
-func inspectDocument(document *html.Node, pageURL *url.URL) (*AnalysisResult, []string) {
-	result := &AnalysisResult{HTMLVersion: "Unknown (no doctype)"}
+func validateWebURL(rawURL string) (*url.URL, error) {
+	parsedURL, err := url.ParseRequestURI(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, errors.New("enter a valid URL")
+	}
+	if parsedURL.Host == "" {
+		return nil, errors.New("URL must include a hostname")
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, errors.New("URL must use HTTP or HTTPS")
+	}
+	return parsedURL, nil
+}
+
+func inspectDocument(document *html.Node, pageURL *url.URL) (*Result, []string) {
+	result := &Result{HTMLVersion: "Unknown (no doctype)"}
 	uniqueLinks := make(map[string]struct{})
 
 	var walk func(*html.Node)
@@ -159,7 +173,6 @@ func inspectDocument(document *html.Node, pageURL *url.URL) (*AnalysisResult, []
 			walk(child)
 		}
 	}
-
 	walk(document)
 
 	links := make([]string, 0, len(uniqueLinks))
@@ -250,85 +263,4 @@ func resolveWebLink(baseURL *url.URL, href string) (*url.URL, bool) {
 	}
 	resolved.Fragment = ""
 	return resolved, true
-}
-
-func (a *Analyzer) countInaccessibleLinks(ctx context.Context, links []string) (int, error) {
-	if len(links) == 0 {
-		return 0, nil
-	}
-
-	workerCount := a.workers
-	if workerCount > len(links) {
-		workerCount = len(links)
-	}
-
-	jobs := make(chan string)
-	results := make(chan bool)
-	var workers sync.WaitGroup
-
-	for range workerCount {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			for link := range jobs {
-				results <- a.linkIsAccessible(ctx, link)
-			}
-		}()
-	}
-
-	go func() {
-		defer close(jobs)
-		for _, link := range links {
-			select {
-			case jobs <- link:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	go func() {
-		workers.Wait()
-		close(results)
-	}()
-
-	inaccessible := 0
-	for accessible := range results {
-		if !accessible {
-			inaccessible++
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return 0, err
-	}
-	return inaccessible, nil
-}
-
-func (a *Analyzer) linkIsAccessible(ctx context.Context, link string) bool {
-	statusCode, err := a.requestLink(ctx, http.MethodHead, link)
-	if err != nil {
-		return false
-	}
-	if statusCode == http.StatusMethodNotAllowed || statusCode == http.StatusNotImplemented {
-		statusCode, err = a.requestLink(ctx, http.MethodGet, link)
-		if err != nil {
-			return false
-		}
-	}
-	return statusCode < http.StatusBadRequest
-}
-
-func (a *Analyzer) requestLink(ctx context.Context, method, link string) (int, error) {
-	request, err := http.NewRequestWithContext(ctx, method, link, nil)
-	if err != nil {
-		return 0, err
-	}
-	request.Header.Set("User-Agent", "WebAnalyzer/1.0")
-
-	response, err := a.client.Do(request)
-	if err != nil {
-		return 0, err
-	}
-	response.Body.Close()
-	return response.StatusCode, nil
 }

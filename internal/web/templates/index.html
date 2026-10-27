@@ -13,44 +13,23 @@
 			background: #141414;
 		}
 
-		* {
-			box-sizing: border-box;
-		}
+		* { box-sizing: border-box; }
 
 		body {
 			min-height: 100vh;
-			min-height: 100svh;
 			margin: 0;
 			display: grid;
 			place-items: center;
 			padding: 24px;
 		}
 
-		main {
+		main { width: 100%; max-width: 640px; }
+		h1 { margin: 0 0 32px; font-size: 28px; }
+		form { display: grid; gap: 12px; }
+		label { color: #bdbdbd; font-size: 14px; }
+
+		input, button {
 			width: 100%;
-			max-width: 440px;
-		}
-
-		h1 {
-			margin: 0 0 32px;
-			font-size: 28px;
-			font-weight: 600;
-		}
-
-		form {
-			display: grid;
-			gap: 12px;
-		}
-
-		label {
-			color: #bdbdbd;
-			font-size: 14px;
-		}
-
-		input,
-		button {
-			width: 100%;
-			min-width: 0;
 			min-height: 48px;
 			padding: 12px 16px;
 			border: 1px solid #454545;
@@ -58,33 +37,15 @@
 			font: inherit;
 		}
 
-		input {
-			background: #202020;
-			color: #ededed;
-		}
-
-		input::placeholder {
-			color: #909090;
-		}
-
-		button {
-			margin-top: 8px;
-			border-color: transparent;
-			background: #b4e3c1;
-			color: #14251a;
-			font-weight: 600;
-			cursor: pointer;
-		}
-
-		button:hover {
-			background: #c9efd3;
-		}
-
-		input:focus-visible,
-		button:focus-visible {
-			outline: 2px solid #b4e3c1;
-			outline-offset: 3px;
-		}
+		input { background: #202020; color: #ededed; }
+		button { margin-top: 8px; border-color: transparent; background: #b4e3c1; color: #14251a; font-weight: 600; cursor: pointer; }
+		button:hover { background: #c9efd3; }
+		input:focus-visible, button:focus-visible { outline: 2px solid #b4e3c1; outline-offset: 3px; }
+		[role="alert"] { color: #ffb4ab; }
+		section { margin-top: 32px; }
+		dl { display: grid; grid-template-columns: minmax(150px, auto) 1fr; gap: 8px 24px; }
+		dt { color: #bdbdbd; }
+		dd { margin: 0; overflow-wrap: anywhere; }
 	</style>
 </head>
 <body>
@@ -95,9 +56,7 @@
 			<input id="url" name="url" type="url" placeholder="https://example.com" value="{{.URL}}" required>
 			<button type="submit">Analyze</button>
 		</form>
-        {{if .Error}}
-        <p role="alert">{{.Error}}</p>
-        {{end}}
+		{{if .Error}}<p role="alert">{{.Error}}</p>{{end}}
 		{{if .Result}}
 		<section aria-labelledby="results-title">
 			<h2 id="results-title">Analysis results</h2>
