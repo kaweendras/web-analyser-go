@@ -57,8 +57,11 @@ func TestHandlerDisplaysForm(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.Code)
 	}
-	if !strings.Contains(response.Body.String(), "Web Page Analyzer") {
-		t.Error("response does not contain the page heading")
+	body := response.Body.String()
+	for _, expected := range []string{"Web Page Analyzer", "<table>", "Analyze page"} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("response does not contain %q", expected)
+		}
 	}
 }
 

@@ -8,9 +8,10 @@
 	<style>
 		:root {
 			color-scheme: dark;
-			font-family: "Segoe UI", sans-serif;
-			color: #ededed;
-			background: #141414;
+			font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			color: #eef2ff;
+			background: #080b14;
+			font-synthesis: none;
 		}
 
 		* { box-sizing: border-box; }
@@ -18,69 +19,114 @@
 		body {
 			min-height: 100vh;
 			margin: 0;
-			display: grid;
-			place-items: center;
-			padding: 24px;
+			padding: 56px 24px;
+			background:
+				radial-gradient(circle at 15% 0%, rgba(78, 91, 213, 0.22), transparent 36%),
+				radial-gradient(circle at 90% 20%, rgba(31, 201, 160, 0.12), transparent 32%),
+				#080b14;
 		}
 
-		main { width: 100%; max-width: 640px; }
-		h1 { margin: 0 0 32px; font-size: 28px; }
-		form { display: grid; gap: 12px; }
-		label { color: #bdbdbd; font-size: 14px; }
+		main { width: min(100%, 920px); margin: 0 auto; }
+		h1, h2, p { margin-top: 0; }
+		h1 { margin-bottom: 12px; font-size: clamp(32px, 6vw, 48px); line-height: 1.05; letter-spacing: -0.04em; }
+		h2 { margin-bottom: 6px; font-size: 22px; letter-spacing: -0.02em; }
 
-		input, button {
-			width: 100%;
-			min-height: 48px;
-			padding: 12px 16px;
-			border: 1px solid #454545;
-			border-radius: 6px;
-			font: inherit;
+		.eyebrow {
+			margin-bottom: 12px;
+			color: #83e7c6;
+			font-size: 12px;
+			font-weight: 700;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
 		}
 
-		input { background: #202020; color: #ededed; }
-		button { margin-top: 8px; border-color: transparent; background: #b4e3c1; color: #14251a; font-weight: 600; cursor: pointer; }
-		button:hover { background: #c9efd3; }
-		button:disabled { cursor: wait; opacity: 0.65; }
-		input:focus-visible, button:focus-visible { outline: 2px solid #b4e3c1; outline-offset: 3px; }
-		[role="alert"] { color: #ffb4ab; }
-		section { margin-top: 32px; }
-		dl { display: grid; grid-template-columns: minmax(150px, auto) 1fr; gap: 8px 24px; }
-		dt { color: #bdbdbd; }
-		dd { margin: 0; overflow-wrap: anywhere; }
+		.intro { max-width: 650px; margin-bottom: 28px; color: #9ca7c7; font-size: 16px; line-height: 1.65; }
+
+		.panel {
+			border: 1px solid rgba(148, 163, 184, 0.17);
+			border-radius: 18px;
+			background: rgba(17, 22, 38, 0.88);
+			box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+			backdrop-filter: blur(12px);
+		}
+
+		.search-panel { padding: 22px; }
+		form { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+		.field { display: grid; gap: 8px; }
+		label { color: #a9b3cf; font-size: 13px; font-weight: 600; }
+
+		input, button { min-height: 52px; border-radius: 11px; font: inherit; }
+		input { width: 100%; padding: 12px 16px; border: 1px solid #343d5f; background: #0c1020; color: #f8faff; }
+		input::placeholder { color: #65708f; }
+		button {
+			padding: 12px 26px;
+			border: 0;
+			background: linear-gradient(135deg, #8cf0ce, #5fd3ae);
+			color: #071510;
+			font-weight: 750;
+			cursor: pointer;
+			box-shadow: 0 10px 30px rgba(95, 211, 174, 0.18);
+		}
+
+		button:hover { filter: brightness(1.06); transform: translateY(-1px); }
+		button:disabled { cursor: wait; opacity: 0.65; transform: none; }
+		input:focus-visible, button:focus-visible { outline: 3px solid rgba(140, 240, 206, 0.42); outline-offset: 2px; }
+		[role="alert"] { margin: 14px 4px 0; color: #ffaaa4; }
 		[hidden] { display: none !important; }
 
-		.progress-header {
-			display: flex;
-			justify-content: space-between;
-			gap: 16px;
-			margin-bottom: 10px;
-			color: #bdbdbd;
-			font-size: 14px;
+		.progress-panel { margin-top: 18px; padding: 18px 20px; }
+		.progress-header { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; color: #a9b3cf; font-size: 13px; }
+		progress { width: 100%; height: 10px; border: 0; accent-color: #73dfbd; }
+
+		.results-panel { margin-top: 22px; overflow: hidden; }
+		.results-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 22px 24px; border-bottom: 1px solid rgba(148, 163, 184, 0.14); }
+		.results-heading p { margin: 0; color: #8792b2; font-size: 13px; }
+		.status-chip { flex: 0 0 auto; padding: 7px 11px; border: 1px solid rgba(115, 223, 189, 0.22); border-radius: 999px; background: rgba(115, 223, 189, 0.09); color: #8cf0ce; font-size: 12px; font-weight: 700; }
+
+		.table-wrap { overflow-x: auto; }
+		table { width: 100%; border-collapse: collapse; font-size: 14px; }
+		caption { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+		th, td { padding: 14px 24px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); text-align: left; vertical-align: top; }
+		thead th { color: #7783a5; background: rgba(8, 11, 20, 0.35); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; }
+		tbody th { width: 38%; color: #9faac6; font-weight: 500; }
+		td { color: #f4f6ff; font-weight: 650; overflow-wrap: anywhere; }
+		.group-row th { width: auto; padding-top: 20px; padding-bottom: 9px; background: rgba(79, 92, 213, 0.06); color: #818df0; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+		tbody:last-child tr:last-child > * { border-bottom: 0; }
+
+		@media (max-width: 640px) {
+			body { padding: 34px 15px; }
+			form { grid-template-columns: 1fr; }
+			button { width: 100%; }
+			.results-heading { align-items: flex-start; padding: 20px; }
+			th, td { padding: 13px 18px; }
+			tbody th { width: 48%; }
 		}
 
-		progress {
-			width: 100%;
-			height: 14px;
-			accent-color: #b4e3c1;
-		}
-
-		@media (max-width: 520px) {
-			dl { grid-template-columns: 1fr; gap: 4px; }
-			dd { margin-bottom: 12px; }
+		@media (prefers-reduced-motion: no-preference) {
+			button { transition: filter 160ms ease, transform 160ms ease; }
+			.results-panel { animation: reveal 280ms ease-out; }
+			@keyframes reveal { from { opacity: 0; transform: translateY(8px); } }
 		}
 	</style>
 </head>
 <body>
 	<main>
+		<p class="eyebrow">Site inspection tool</p>
 		<h1>Web Page Analyzer</h1>
-		<form id="analyze-form" method="post" action="/">
-			<label for="url">Web page URL</label>
-			<input id="url" name="url" type="url" placeholder="https://example.com" value="{{.URL}}" required>
-			<button id="analyze-button" type="submit">Analyze</button>
-		</form>
-		<p id="error-message" role="alert" {{if not .Error}}hidden{{end}}>{{.Error}}</p>
+		<p class="intro">Inspect a web page's HTML structure, headings, links, and login form in one report.</p>
 
-		<section id="analysis-progress" aria-labelledby="progress-title" hidden>
+		<div class="panel search-panel">
+			<form id="analyze-form" method="post" action="/">
+				<div class="field">
+					<label for="url">Web page URL</label>
+					<input id="url" name="url" type="url" placeholder="https://example.com" value="{{.URL}}" required>
+				</div>
+				<button id="analyze-button" type="submit">Analyze page</button>
+			</form>
+			<p id="error-message" role="alert" {{if not .Error}}hidden{{end}}>{{.Error}}</p>
+		</div>
+
+		<section id="analysis-progress" class="panel progress-panel" aria-labelledby="progress-title" hidden>
 			<div class="progress-header">
 				<span id="progress-title">Preparing analysis</span>
 				<span id="progress-count"></span>
@@ -88,24 +134,39 @@
 			<progress id="progress-bar" aria-describedby="progress-count"></progress>
 		</section>
 
-		<section id="analysis-results" aria-labelledby="results-title" {{if not .Result}}hidden{{end}}>
-			<h2 id="results-title">Analysis results</h2>
-			<dl>
-				<dt>Analyzed URL</dt><dd id="result-url">{{with .Result}}{{.URL}}{{end}}</dd>
-				<dt>HTML version</dt><dd id="result-html-version">{{with .Result}}{{.HTMLVersion}}{{end}}</dd>
-				<dt>Page title</dt><dd id="result-title">{{with .Result}}{{if .Title}}{{.Title}}{{else}}No title{{end}}{{end}}</dd>
-				<dt>H1 headings</dt><dd id="result-h1">{{with .Result}}{{index .Headings 0}}{{end}}</dd>
-				<dt>H2 headings</dt><dd id="result-h2">{{with .Result}}{{index .Headings 1}}{{end}}</dd>
-				<dt>H3 headings</dt><dd id="result-h3">{{with .Result}}{{index .Headings 2}}{{end}}</dd>
-				<dt>H4 headings</dt><dd id="result-h4">{{with .Result}}{{index .Headings 3}}{{end}}</dd>
-				<dt>H5 headings</dt><dd id="result-h5">{{with .Result}}{{index .Headings 4}}{{end}}</dd>
-				<dt>H6 headings</dt><dd id="result-h6">{{with .Result}}{{index .Headings 5}}{{end}}</dd>
-				<dt>Internal links</dt><dd id="result-internal">{{with .Result}}{{.InternalLinks}}{{end}}</dd>
-				<dt>External links</dt><dd id="result-external">{{with .Result}}{{.ExternalLinks}}{{end}}</dd>
-				<dt>Unique links checked</dt><dd id="result-checked">{{with .Result}}{{.CheckedLinks}}{{end}}</dd>
-				<dt>Inaccessible links</dt><dd id="result-inaccessible">{{with .Result}}{{.InaccessibleLinks}}{{end}}</dd>
-				<dt>Login form</dt><dd id="result-login">{{with .Result}}{{if .HasLoginForm}}Yes{{else}}No{{end}}{{end}}</dd>
-			</dl>
+		<section id="analysis-results" class="panel results-panel" aria-labelledby="results-title" {{if not .Result}}hidden{{end}}>
+			<div class="results-heading">
+				<div>
+					<h2 id="results-title">Analysis results</h2>
+					<p>Server-rendered HTML and unique link accessibility report</p>
+				</div>
+				<span class="status-chip">Complete</span>
+			</div>
+			<div class="table-wrap">
+				<table>
+					<caption>Web page analysis metrics and values</caption>
+					<thead><tr><th scope="col">Metric</th><th scope="col">Value</th></tr></thead>
+					<tbody>
+						<tr class="group-row"><th colspan="2" scope="colgroup">Page information</th></tr>
+						<tr><th scope="row">Analyzed URL</th><td id="result-url">{{with .Result}}{{.URL}}{{end}}</td></tr>
+						<tr><th scope="row">HTML version</th><td id="result-html-version">{{with .Result}}{{.HTMLVersion}}{{end}}</td></tr>
+						<tr><th scope="row">Page title</th><td id="result-title">{{with .Result}}{{if .Title}}{{.Title}}{{else}}No title{{end}}{{end}}</td></tr>
+						<tr class="group-row"><th colspan="2" scope="colgroup">Heading structure</th></tr>
+						<tr><th scope="row">H1 headings</th><td id="result-h1">{{with .Result}}{{index .Headings 0}}{{end}}</td></tr>
+						<tr><th scope="row">H2 headings</th><td id="result-h2">{{with .Result}}{{index .Headings 1}}{{end}}</td></tr>
+						<tr><th scope="row">H3 headings</th><td id="result-h3">{{with .Result}}{{index .Headings 2}}{{end}}</td></tr>
+						<tr><th scope="row">H4 headings</th><td id="result-h4">{{with .Result}}{{index .Headings 3}}{{end}}</td></tr>
+						<tr><th scope="row">H5 headings</th><td id="result-h5">{{with .Result}}{{index .Headings 4}}{{end}}</td></tr>
+						<tr><th scope="row">H6 headings</th><td id="result-h6">{{with .Result}}{{index .Headings 5}}{{end}}</td></tr>
+						<tr class="group-row"><th colspan="2" scope="colgroup">Links and forms</th></tr>
+						<tr><th scope="row">Internal links</th><td id="result-internal">{{with .Result}}{{.InternalLinks}}{{end}}</td></tr>
+						<tr><th scope="row">External links</th><td id="result-external">{{with .Result}}{{.ExternalLinks}}{{end}}</td></tr>
+						<tr><th scope="row">Unique links checked</th><td id="result-checked">{{with .Result}}{{.CheckedLinks}}{{end}}</td></tr>
+						<tr><th scope="row">Inaccessible links</th><td id="result-inaccessible">{{with .Result}}{{.InaccessibleLinks}}{{end}}</td></tr>
+						<tr><th scope="row">Login form detected</th><td id="result-login">{{with .Result}}{{if .HasLoginForm}}Yes{{else}}No{{end}}{{end}}</td></tr>
+					</tbody>
+				</table>
+			</div>
 		</section>
 	</main>
 
@@ -161,7 +222,7 @@
 					progressSection.hidden = true;
 				} finally {
 					button.disabled = false;
-					button.textContent = "Analyze";
+					button.textContent = "Analyze page";
 				}
 			});
 
@@ -194,6 +255,7 @@
 				setText("result-inaccessible", result.inaccessibleLinks);
 				setText("result-login", result.hasLoginForm ? "Yes" : "No");
 				resultsSection.hidden = false;
+				resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
 			}
 
 			function setText(id, value) {
