@@ -89,35 +89,15 @@ go test -cover ./...
 
 Tests use local `httptest` servers and fake dependencies rather than making requests to public websites.
 
-## Architecture and decisions
+## Architecture diagram
 
-The application uses a small layered structure:
-
-1. The web handler validates the request flow and streams newline-delimited JSON progress events.
-2. The analyzer downloads and parses the submitted page with `golang.org/x/net/html`.
-3. The link checker distributes unique URLs to a bounded worker pool.
-4. The embedded HTML template renders results without requiring a separate frontend build.
-
-The worker count scales with the number of unique links and is capped at 20. This improves large-page performance without creating an unbounded number of goroutines or overwhelming remote servers.
-
-Network requests have an 8-second client timeout, and a complete analysis has a 2-minute deadline. Structured application messages use the standard library's `log/slog` package.
-
-## Assumptions
-
-- A link is internal when its hostname matches the analyzed page's hostname.
-- Internal and external totals count link occurrences on the submitted page.
-- Link accessibility checks are deduplicated, so each unique destination is checked once.
-- Only HTTP and HTTPS links are analyzed; fragments, email links, and other schemes are ignored.
-- A form containing an `<input type="password">` is treated as a likely login form.
-- The analyzer inspects server-returned HTML and does not execute client-side JavaScript.
-- A link is inaccessible when the request fails or returns HTTP status 400 or higher.
-- `HEAD` is attempted first; `GET` with a small range is used when a server rejects `HEAD`.
-
-## Possible improvements
-
-- Display the individual inaccessible URLs and their status codes.
-- Allow timeout and worker limits to be configured through environment variables.
-- Add per-host rate limiting and retry rules for temporary failures.
-- Cache recent results to avoid repeating identical checks.
-- Add end-to-end browser tests and automated CI checks.
-- Support JavaScript-rendered pages through an optional browser-based analyzer.
+```mermaid
+flowchart LR
+    Browser[Web browser] --> Handler[HTTP handler]
+    Handler --> Analyzer[Page analyzer]
+    Analyzer --> Page[Target web page]
+    Analyzer --> Pool[Link checker worker pool]
+    Pool --> Links[Unique page links]
+    Handler -. Progress events .-> Browser
+    Analyzer --> Handler
+```
