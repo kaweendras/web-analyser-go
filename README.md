@@ -63,22 +63,6 @@ docker run --rm -p 8080:8080 web-analyser
 
 Then open [http://localhost:8080](http://localhost:8080). The container runs as a non-root user and includes the CA certificates required for HTTPS checks.
 
-## Make commands
-
-If GNU Make is installed:
-
-```bash
-make run           # Start the application
-make build         # Build the local executable
-make fmt           # Format Go source files
-make vet           # Run static checks
-make test          # Run unit tests
-make coverage      # Show package test coverage
-make check         # Format, vet, and test
-make docker-build  # Build the Docker image
-make docker-run    # Run the Docker image on port 8080
-```
-
 ## Tests
 
 ```bash
@@ -89,15 +73,25 @@ go test -cover ./...
 
 Tests use local `httptest` servers and fake dependencies rather than making requests to public websites.
 
+## Real-world applications and opportunities
+
+- **Pre-release website QA:** Check a page's structure and link health before deployment.
+- **Content migration validation:** Compare pages after a redesign or CMS migration to catch missing headings and broken destinations.
+- **SEO and content audits:** Review titles, heading hierarchy, and internal versus external link usage.
+- **Campaign and landing-page checks:** Validate important links before publishing marketing pages.
+- **CI/CD quality checks:** Run automated page analysis after a staging deployment and fail a build when important links are inaccessible.
+- **Monitoring services:** Extend the analyzer into a scheduled service that alerts site owners when page structure or link availability changes.
+
+## Further development
+
+- Show each inaccessible URL with its status code or network error.
+- Add configurable worker limits, timeouts, retries, and per-domain rate limiting.
+- Store analysis history and allow reports to be exported as JSON or CSV.
+- Add scheduled scans, notifications, and comparisons between previous results.
+- Support JavaScript-rendered pages through an optional browser-based analyzer.
+- Add authentication, API rate limiting, and private-network URL protection before public deployment.
+- Add continuous integration for tests, static analysis, and Docker image builds.
+
 ## Architecture diagram
 
-```mermaid
-flowchart LR
-    Browser[Web browser] --> Handler[HTTP handler]
-    Handler --> Analyzer[Page analyzer]
-    Analyzer --> Page[Target web page]
-    Analyzer --> Pool[Link checker worker pool]
-    Pool --> Links[Unique page links]
-    Handler -. Progress events .-> Browser
-    Analyzer --> Handler
-```
+![Web Page Analyzer architecture](docs/architecture.svg)
