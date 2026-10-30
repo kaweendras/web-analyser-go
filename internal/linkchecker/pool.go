@@ -35,7 +35,7 @@ func New(client *http.Client, maxWorkers int) *Pool {
 // ProgressFunc receives completed and total link counts.
 type ProgressFunc func(completed, total int)
 
-// Check checks every supplied URL once and returns one result per URL.
+// Check every supplied URL once and returns one result per URL.
 func (p *Pool) Check(ctx context.Context, links []string, progress ProgressFunc) ([]Result, error) {
 	if len(links) == 0 {
 		if progress != nil {
