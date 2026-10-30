@@ -75,8 +75,17 @@ func TestAnalysisTimeoutStreamsPartialResults(t *testing.T) {
 	if partial.Result.CheckedLinks < 1 || partial.Result.CheckedLinks >= 3 {
 		t.Errorf("checked links = %d, want some but not all 3 links", partial.Result.CheckedLinks)
 	}
-	if lastProgress.Completed != partial.Result.CheckedLinks || lastProgress.Total != 3 {
-		t.Errorf("last progress = %d/%d, partial checked links = %d", lastProgress.Completed, lastProgress.Total, partial.Result.CheckedLinks)
+	if lastProgress.Completed == nil || lastProgress.Total == nil {
+		t.Fatal("last progress event is missing completed or total")
+	}
+	if *lastProgress.Completed != partial.Result.CheckedLinks || *lastProgress.Total != 3 {
+		t.Errorf("last progress = %d/%d, partial checked links = %d", *lastProgress.Completed, *lastProgress.Total, partial.Result.CheckedLinks)
+	}
+	if partial.Completed == nil || partial.Total == nil {
+		t.Fatal("partial event is missing its latest progress")
+	}
+	if *partial.Completed != partial.Result.CheckedLinks || *partial.Total != 3 {
+		t.Errorf("partial progress = %d/%d, checked links = %d", *partial.Completed, *partial.Total, partial.Result.CheckedLinks)
 	}
 	if !strings.Contains(partial.Message, "Here is what was analyzed before the timeout.") {
 		t.Errorf("partial message = %q", partial.Message)

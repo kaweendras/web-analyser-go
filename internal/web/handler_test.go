@@ -15,7 +15,11 @@ import (
 )
 
 func TestStreamEventIncludesZeroProgressValues(t *testing.T) {
-	encoded, err := json.Marshal(streamEvent{Type: "progress"})
+	encoded, err := json.Marshal(streamEvent{
+		Type:      "progress",
+		Completed: intValue(0),
+		Total:     intValue(0),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,6 +28,17 @@ func TestStreamEventIncludesZeroProgressValues(t *testing.T) {
 		if !strings.Contains(body, expected) {
 			t.Errorf("zero-link progress event does not contain %s: %s", expected, body)
 		}
+	}
+}
+
+func TestStreamEventOmitsProgressValuesWhenNotApplicable(t *testing.T) {
+	encoded, err := json.Marshal(streamEvent{Type: "status", Message: "Starting"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(encoded)
+	if strings.Contains(body, "completed") || strings.Contains(body, "total") {
+		t.Errorf("status event contains progress values: %s", body)
 	}
 }
 
@@ -56,6 +71,9 @@ func TestHandlerDisplaysForm(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.Code)
+	}
+	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/html; charset=utf-8", got)
 	}
 	body := response.Body.String()
 	for _, expected := range []string{"Web Page Analyzer", "<table>", "Analyze page"} {
@@ -149,6 +167,23 @@ func TestHandlerRejectsUnsupportedMethodAndPath(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/missing", nil))
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("missing path status = %d, want 404", response.Code)
+	}
+}
+
+func TestHandlerRejectsOversizedForm(t *testing.T) {
+	handler := NewHandler(&fakeAnalyzer{}, time.Second)
+	body := "url=" + strings.Repeat("a", maxFormBodySize+1)
+
+	for _, path := range []string{"/", "/api/analyze"} {
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		response := httptest.NewRecorder()
+
+		handler.ServeHTTP(response, request)
+
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("POST %s status = %d, want 400", path, response.Code)
+		}
 	}
 }
 

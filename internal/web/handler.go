@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -14,6 +15,8 @@ import (
 	"web-analyser-go/internal/analyzer"
 )
 
+const maxFormBodySize = 1 << 20 // 1 MiB
+
 //go:embed templates/index.html
 var templateFiles embed.FS
 
@@ -25,7 +28,7 @@ type PageAnalyzer interface {
 	AnalyzeWithProgress(context.Context, string, analyzer.ProgressFunc) (*analyzer.Result, error)
 }
 
-// Handler serves the form and analysis results.
+// Handler serves the web interface and streams analysis progress and results.
 type Handler struct {
 	analyzer PageAnalyzer
 	timeout  time.Duration
@@ -40,8 +43,8 @@ type pageData struct {
 type streamEvent struct {
 	Type      string           `json:"type"`
 	Message   string           `json:"message,omitempty"`
-	Completed int              `json:"completed"`
-	Total     int              `json:"total"`
+	Completed *int             `json:"completed,omitempty"`
+	Total     *int             `json:"total,omitempty"`
 	Result    *analyzer.Result `json:"result,omitempty"`
 }
 
@@ -66,7 +69,11 @@ func (h *Handler) servePage(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 	case http.MethodPost:
-		data.URL = strings.TrimSpace(r.FormValue("url"))
+		submittedURL, ok := parseSubmittedURL(w, r)
+		if !ok {
+			return
+		}
+		data.URL = submittedURL
 		analysisContext, cancel := context.WithTimeout(r.Context(), h.timeout)
 		defer cancel()
 
@@ -81,9 +88,15 @@ func (h *Handler) servePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := pageTemplate.ExecuteTemplate(w, "index.html", data); err != nil {
+	var rendered bytes.Buffer
+	if err := pageTemplate.ExecuteTemplate(&rendered, "index.html", data); err != nil {
 		slog.Error("Failed to render template", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write(rendered.Bytes()); err != nil {
+		slog.Warn("Failed to write rendered page", "error", err)
 	}
 }
 
@@ -93,7 +106,10 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	submittedURL := strings.TrimSpace(r.FormValue("url"))
+	submittedURL, ok := parseSubmittedURL(w, r)
+	if !ok {
+		return
+	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -122,10 +138,16 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 
 	var streamErr error
 	lastProgressSent := -1
+	latestCompleted := 0
+	latestTotal := 0
+	hasProgress := false
 	progress := func(completed, total int) {
 		if streamErr != nil {
 			return
 		}
+		latestCompleted = completed
+		latestTotal = total
+		hasProgress = true
 		if total > 100 && completed > 0 && completed < total {
 			step := total / 100
 			if completed-lastProgressSent < step {
@@ -133,7 +155,11 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		lastProgressSent = completed
-		streamErr = send(streamEvent{Type: "progress", Completed: completed, Total: total})
+		streamErr = send(streamEvent{
+			Type:      "progress",
+			Completed: intValue(completed),
+			Total:     intValue(total),
+		})
 		if streamErr != nil {
 			cancel()
 		}
@@ -152,14 +178,32 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 		if result != nil {
 			eventType = "partial"
 		}
-		_ = send(streamEvent{
+		event := streamEvent{
 			Type:    eventType,
 			Message: analysisMessage(err, result != nil),
 			Result:  result,
-		})
+		}
+		if result != nil && hasProgress {
+			event.Completed = intValue(latestCompleted)
+			event.Total = intValue(latestTotal)
+		}
+		_ = send(event)
 		return
 	}
 	_ = send(streamEvent{Type: "result", Result: result})
+}
+
+func parseSubmittedURL(w http.ResponseWriter, r *http.Request) (string, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBodySize)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return "", false
+	}
+	return strings.TrimSpace(r.Form.Get("url")), true
+}
+
+func intValue(value int) *int {
+	return &value
 }
 
 func analysisMessage(err error, hasPartialResult bool) string {
