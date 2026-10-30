@@ -155,3 +155,34 @@ func TestPoolHonorsCancellation(t *testing.T) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}
 }
+
+func TestPoolReturnsCompletedResultsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(request.URL.Path, "/one") {
+			return response(request, http.StatusOK), nil
+		}
+		<-request.Context().Done()
+		return nil, request.Context().Err()
+	})
+	links := []string{
+		"https://example.com/one",
+		"https://example.com/two",
+		"https://example.com/three",
+	}
+
+	results, err := New(&http.Client{Transport: transport}, 1).
+		Check(ctx, links, func(completed, _ int) {
+			if completed == 1 {
+				cancel()
+			}
+		})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if len(results) == 0 || len(results) >= len(links) {
+		t.Fatalf("result count = %d, want some but not all results", len(results))
+	}
+}

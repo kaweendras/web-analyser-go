@@ -116,6 +116,26 @@ func TestHandlerExplainsAnalysisTimeout(t *testing.T) {
 	}
 }
 
+func TestHandlerDisplaysPartialTimeoutResult(t *testing.T) {
+	handler := NewHandler(&fakeAnalyzer{
+		result: &analyzer.Result{URL: "https://example.com", Title: "Partial title", CheckedLinks: 3},
+		err:    context.DeadlineExceeded,
+	}, time.Second)
+	form := url.Values{"url": {"https://example.com"}}
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	body := response.Body.String()
+	for _, expected := range []string{"Partial title", "Partial", "Here is what was analyzed before the timeout."} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("partial response does not contain %q", expected)
+		}
+	}
+}
+
 func TestHandlerRejectsUnsupportedMethodAndPath(t *testing.T) {
 	handler := NewHandler(&fakeAnalyzer{}, time.Second)
 
@@ -156,6 +176,26 @@ func TestHandlerStreamsProgressAndResult(t *testing.T) {
 	} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("stream does not contain %s\nbody: %s", expected, body)
+		}
+	}
+}
+
+func TestHandlerStreamsPartialTimeoutResult(t *testing.T) {
+	handler := NewHandler(&fakeAnalyzer{
+		result: &analyzer.Result{URL: "https://example.com", Title: "Partial title", CheckedLinks: 1},
+		err:    context.DeadlineExceeded,
+	}, time.Second)
+	form := url.Values{"url": {"https://example.com"}}
+	request := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	body := response.Body.String()
+	for _, expected := range []string{`"type":"partial"`, `"title":"Partial title"`, "Here is what was analyzed before the timeout."} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("partial stream does not contain %q\nbody: %s", expected, body)
 		}
 	}
 }

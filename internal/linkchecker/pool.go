@@ -66,6 +66,9 @@ func (p *Pool) Check(ctx context.Context, links []string, progress ProgressFunc)
 	go func() {
 		defer close(jobs)
 		for _, link := range links {
+			if ctx.Err() != nil {
+				return
+			}
 			select {
 			case jobs <- link:
 			case <-ctx.Done():
@@ -87,7 +90,7 @@ func (p *Pool) Check(ctx context.Context, links []string, progress ProgressFunc)
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return checked, err
 	}
 	return checked, nil
 }

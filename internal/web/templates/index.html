@@ -82,6 +82,8 @@
 		.results-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 22px 24px; border-bottom: 1px solid rgba(148, 163, 184, 0.14); }
 		.results-heading p { margin: 0; color: #8792b2; font-size: 13px; }
 		.status-chip { flex: 0 0 auto; padding: 7px 11px; border: 1px solid rgba(115, 223, 189, 0.22); border-radius: 999px; background: rgba(115, 223, 189, 0.09); color: #8cf0ce; font-size: 12px; font-weight: 700; }
+		.status-chip-warning { border-color: rgba(255, 190, 92, 0.3); background: rgba(255, 190, 92, 0.1); color: #ffd28a; }
+		.results-notice { margin: 18px 24px 0; padding: 13px 15px; border: 1px solid rgba(255, 190, 92, 0.24); border-radius: 10px; background: rgba(255, 190, 92, 0.08); color: #ffdca6; font-size: 13px; line-height: 1.5; }
 
 		.table-wrap { overflow-x: auto; }
 		table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -123,7 +125,7 @@
 				</div>
 				<button id="analyze-button" type="submit">Analyze page</button>
 			</form>
-			<p id="error-message" role="alert" {{if not .Error}}hidden{{end}}>{{.Error}}</p>
+			<p id="error-message" role="alert" {{if or (not .Error) .Result}}hidden{{end}}>{{.Error}}</p>
 		</div>
 
 		<section id="analysis-progress" class="panel progress-panel" aria-labelledby="progress-title" hidden>
@@ -140,8 +142,9 @@
 					<h2 id="results-title">Analysis results</h2>
 					<p>Server-rendered HTML and unique link accessibility report</p>
 				</div>
-				<span class="status-chip">Complete</span>
+				<span id="result-status" class="status-chip {{if .Error}}status-chip-warning{{end}}">{{if .Error}}Partial{{else}}Complete{{end}}</span>
 			</div>
+			<p id="results-notice" class="results-notice" role="status" {{if not .Error}}hidden{{end}}>{{.Error}}</p>
 			<div class="table-wrap">
 				<table>
 					<caption>Web page analysis metrics and values</caption>
@@ -182,6 +185,8 @@
 			const progressCount = document.querySelector("#progress-count");
 			const progressBar = document.querySelector("#progress-bar");
 			const resultsSection = document.querySelector("#analysis-results");
+			const resultsNotice = document.querySelector("#results-notice");
+			const resultStatus = document.querySelector("#result-status");
 
 			form.addEventListener("submit", async (event) => {
 				event.preventDefault();
@@ -189,6 +194,7 @@
 				button.textContent = "Analyzing…";
 				errorMessage.hidden = true;
 				resultsSection.hidden = true;
+				resultsNotice.hidden = true;
 				progressSection.hidden = false;
 				progressTitle.textContent = "Fetching and parsing the page";
 				progressCount.textContent = "";
@@ -239,12 +245,24 @@
 					return;
 				}
 				if (event.type === "error") throw new Error(event.message);
-				if (event.type === "result") showResult(event.result);
+				if (event.type === "partial") {
+					progressTitle.textContent = "Analysis timed out";
+					showResult(event.result, false);
+					resultsNotice.textContent = event.message;
+					resultsNotice.hidden = false;
+					return;
+				}
+				if (event.type === "result") showResult(event.result, true);
 			}
 
-			function showResult(result) {
-				progressTitle.textContent = "Analysis complete";
-				progressBar.value = progressBar.max;
+			function showResult(result, isComplete) {
+				resultsNotice.hidden = true;
+				resultStatus.textContent = isComplete ? "Complete" : "Partial";
+				resultStatus.classList.toggle("status-chip-warning", !isComplete);
+				if (isComplete) {
+					progressTitle.textContent = "Analysis complete";
+					progressBar.value = progressBar.max;
+				}
 				setText("result-url", result.url);
 				setText("result-html-version", result.htmlVersion);
 				setText("result-title", result.title || "No title");

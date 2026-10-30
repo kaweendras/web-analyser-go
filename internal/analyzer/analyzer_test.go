@@ -173,4 +173,22 @@ func TestAnalyzeReportsFetchAndCheckerErrors(t *testing.T) {
 			t.Fatalf("error = %v, want context.Canceled", err)
 		}
 	})
+
+	t.Run("partial link checker results", func(t *testing.T) {
+		transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return response(request, http.StatusOK, `<!doctype html><a href="/one">one</a><a href="/two">two</a>`), nil
+		})
+		checker := &fakeChecker{
+			results: []linkchecker.Result{{URL: "https://example.com/one", StatusCode: http.StatusOK}},
+			err:     context.DeadlineExceeded,
+		}
+		result, err := New(&http.Client{Transport: transport}, checker).
+			Analyze(context.Background(), "https://example.com")
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("error = %v, want context.DeadlineExceeded", err)
+		}
+		if result == nil || result.CheckedLinks != 1 {
+			t.Fatalf("result = %+v, want a partial result with one checked link", result)
+		}
+	})
 }

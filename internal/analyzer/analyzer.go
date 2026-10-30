@@ -108,7 +108,6 @@ func (a *Analyzer) AnalyzeWithProgress(ctx context.Context, rawURL string, progr
 
 	result, links := inspectDocument(document, pageURL)
 	result.URL = pageURL.String()
-	result.CheckedLinks = len(links)
 
 	var linkProgress linkchecker.ProgressFunc
 	if progress != nil {
@@ -117,13 +116,14 @@ func (a *Analyzer) AnalyzeWithProgress(ctx context.Context, rawURL string, progr
 		}
 	}
 	checks, err := a.linkChecker.Check(ctx, links, linkProgress)
-	if err != nil {
-		return nil, fmt.Errorf("check links: %w", err)
-	}
+	result.CheckedLinks = len(checks)
 	for _, check := range checks {
 		if !check.Accessible() {
 			result.InaccessibleLinks++
 		}
+	}
+	if err != nil {
+		return result, fmt.Errorf("check links: %w", err)
 	}
 
 	return result, nil

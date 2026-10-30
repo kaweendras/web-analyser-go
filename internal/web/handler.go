@@ -71,10 +71,9 @@ func (h *Handler) servePage(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 
 		result, err := h.analyzer.Analyze(analysisContext, data.URL)
+		data.Result = result
 		if err != nil {
-			data.Error = errorMessage(err)
-		} else {
-			data.Result = result
+			data.Error = analysisMessage(err, result != nil)
 		}
 	default:
 		w.Header().Set("Allow", "GET, POST")
@@ -149,15 +148,26 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		_ = send(streamEvent{Type: "error", Message: errorMessage(err)})
+		eventType := "error"
+		if result != nil {
+			eventType = "partial"
+		}
+		_ = send(streamEvent{
+			Type:    eventType,
+			Message: analysisMessage(err, result != nil),
+			Result:  result,
+		})
 		return
 	}
 	_ = send(streamEvent{Type: "result", Result: result})
 }
 
-func errorMessage(err error) string {
+func analysisMessage(err error, hasPartialResult bool) string {
 	if errors.Is(err, context.DeadlineExceeded) {
-		return "Analysis timed out because some links responded too slowly. Please try again."
+		if hasPartialResult {
+			return "Analysis timed out before every link could be checked. Here is what was analyzed before the timeout."
+		}
+		return "Analysis timed out before the page could be analyzed. Please try again."
 	}
 	return err.Error()
 }
