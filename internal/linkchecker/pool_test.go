@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -115,16 +114,12 @@ func TestWorkerCountScalesWithUniqueLinks(t *testing.T) {
 	}
 }
 
-func TestPoolFallsBackToGet(t *testing.T) {
-	var mu sync.Mutex
-	var methods []string
+func TestPoolUsesGetWithByteRange(t *testing.T) {
+	var method string
+	var rangeHeader string
 	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		mu.Lock()
-		methods = append(methods, request.Method)
-		mu.Unlock()
-		if request.Method == http.MethodHead {
-			return response(request, http.StatusMethodNotAllowed), nil
-		}
+		method = request.Method
+		rangeHeader = request.Header.Get("Range")
 		return response(request, http.StatusOK), nil
 	})
 
@@ -136,8 +131,11 @@ func TestPoolFallsBackToGet(t *testing.T) {
 	if len(results) != 1 || !results[0].Accessible() {
 		t.Fatalf("results = %+v, want one accessible result", results)
 	}
-	if strings.Join(methods, ",") != "HEAD,GET" {
-		t.Errorf("methods = %v, want HEAD then GET", methods)
+	if method != http.MethodGet {
+		t.Errorf("method = %q, want GET", method)
+	}
+	if rangeHeader != "bytes=0-0" {
+		t.Errorf("Range header = %q, want bytes=0-0", rangeHeader)
 	}
 }
 

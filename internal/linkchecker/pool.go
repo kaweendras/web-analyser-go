@@ -116,22 +116,17 @@ func (p *Pool) workerCount(linkCount int) int {
 }
 
 func (p *Pool) checkOne(ctx context.Context, link string) Result {
-	statusCode, err := p.request(ctx, http.MethodHead, link)
-	if err == nil && (statusCode == http.StatusMethodNotAllowed || statusCode == http.StatusNotImplemented) {
-		statusCode, err = p.request(ctx, http.MethodGet, link)
-	}
+	statusCode, err := p.request(ctx, link)
 	return Result{URL: link, StatusCode: statusCode, Err: err}
 }
 
-func (p *Pool) request(ctx context.Context, method, link string) (int, error) {
-	request, err := http.NewRequestWithContext(ctx, method, link, nil)
+func (p *Pool) request(ctx context.Context, link string) (int, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
 		return 0, err
 	}
 	request.Header.Set("User-Agent", "WebAnalyzer/1.0")
-	if method == http.MethodGet {
-		request.Header.Set("Range", "bytes=0-0")
-	}
+	request.Header.Set("Range", "bytes=0-0")
 
 	response, err := p.client.Do(request)
 	if err != nil {
