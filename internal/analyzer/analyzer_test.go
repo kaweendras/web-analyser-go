@@ -157,6 +157,9 @@ func TestAnalyzeReportsFetchAndCheckerErrors(t *testing.T) {
 		if !errors.As(err, &fetchError) || fetchError.StatusCode != http.StatusServiceUnavailable {
 			t.Fatalf("error = %v, want FetchError with status 503", err)
 		}
+		if got, want := err.Error(), "HTTP status 503: Service Unavailable"; got != want {
+			t.Errorf("error message = %q, want %q", got, want)
+		}
 	})
 
 	t.Run("link checker error", func(t *testing.T) {

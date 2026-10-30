@@ -92,7 +92,7 @@ func (a *Analyzer) AnalyzeWithProgress(ctx context.Context, rawURL string, progr
 	if response.StatusCode >= http.StatusBadRequest {
 		return nil, &FetchError{
 			StatusCode: response.StatusCode,
-			Err:        errors.New(response.Status),
+			Err:        errors.New(http.StatusText(response.StatusCode)),
 		}
 	}
 
