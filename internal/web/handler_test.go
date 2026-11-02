@@ -107,7 +107,7 @@ func TestHandlerDisplaysResults(t *testing.T) {
 }
 
 func TestHandlerDisplaysAnalyzerError(t *testing.T) {
-	handler := NewHandler(&fakeAnalyzer{err: errors.New("invalid URL")}, time.Second)
+	handler := NewHandler(&fakeAnalyzer{err: &analyzer.ValidationError{Code: "invalid_url"}}, time.Second)
 	form := url.Values{"url": {"invalid"}}
 	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -115,8 +115,8 @@ func TestHandlerDisplaysAnalyzerError(t *testing.T) {
 
 	handler.ServeHTTP(response, request)
 
-	if !strings.Contains(response.Body.String(), "invalid URL") {
-		t.Error("response does not contain analyzer error")
+	if !strings.Contains(response.Body.String(), "Enter a complete website address") {
+		t.Error("response does not contain the friendly validation message")
 	}
 }
 
@@ -147,7 +147,7 @@ func TestHandlerDisplaysPartialTimeoutResult(t *testing.T) {
 	handler.ServeHTTP(response, request)
 
 	body := response.Body.String()
-	for _, expected := range []string{"Partial title", "Partial", "Here is what was analyzed before the timeout."} {
+	for _, expected := range []string{"Partial title", "Partial", "here is what we found."} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("partial response does not contain %q", expected)
 		}
@@ -228,9 +228,29 @@ func TestHandlerStreamsPartialTimeoutResult(t *testing.T) {
 	handler.ServeHTTP(response, request)
 
 	body := response.Body.String()
-	for _, expected := range []string{`"type":"partial"`, `"title":"Partial title"`, "Here is what was analyzed before the timeout."} {
+	for _, expected := range []string{`"type":"partial"`, `"code":"partial_timeout"`, `"title":"Partial title"`, "here is what we found."} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("partial stream does not contain %q\nbody: %s", expected, body)
 		}
+	}
+}
+
+func TestHandlerStreamsFriendlyErrorWithoutInternalDetails(t *testing.T) {
+	handler := NewHandler(&fakeAnalyzer{err: errors.New("internal connection details")}, time.Second)
+	form := url.Values{"url": {"https://example.com"}}
+	request := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	body := response.Body.String()
+	for _, expected := range []string{`"type":"error"`, `"code":"analysis_failed"`, "Something went wrong while analyzing this page."} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("error stream does not contain %q\nbody: %s", expected, body)
+		}
+	}
+	if strings.Contains(body, "internal connection details") {
+		t.Errorf("error stream exposes internal details: %s", body)
 	}
 }

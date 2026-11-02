@@ -49,6 +49,22 @@ type FetchError struct {
 	Err        error
 }
 
+// ValidationError identifies a URL validation problem without exposing parser details.
+type ValidationError struct {
+	Code string
+}
+
+func (e *ValidationError) Error() string {
+	switch e.Code {
+	case "missing_hostname":
+		return "URL must include a hostname"
+	case "unsupported_scheme":
+		return "URL must use HTTP or HTTPS"
+	default:
+		return "enter a valid URL"
+	}
+}
+
 func (e *FetchError) Error() string {
 	if e.StatusCode > 0 {
 		return fmt.Sprintf("HTTP status %d: %v", e.StatusCode, e.Err)
@@ -132,13 +148,13 @@ func (a *Analyzer) AnalyzeWithProgress(ctx context.Context, rawURL string, progr
 func validateWebURL(rawURL string) (*url.URL, error) {
 	parsedURL, err := url.ParseRequestURI(strings.TrimSpace(rawURL))
 	if err != nil {
-		return nil, errors.New("enter a valid URL")
+		return nil, &ValidationError{Code: "invalid_url"}
 	}
 	if parsedURL.Host == "" {
-		return nil, errors.New("URL must include a hostname")
+		return nil, &ValidationError{Code: "missing_hostname"}
 	}
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, errors.New("URL must use HTTP or HTTPS")
+		return nil, &ValidationError{Code: "unsupported_scheme"}
 	}
 	return parsedURL, nil
 }

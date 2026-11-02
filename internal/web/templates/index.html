@@ -58,6 +58,7 @@
 		input, button { min-height: 52px; border-radius: 11px; font: inherit; }
 		input { width: 100%; padding: 12px 16px; border: 1px solid #343d5f; background: #0c1020; color: #f8faff; }
 		input::placeholder { color: #65708f; }
+		input[aria-invalid="true"] { border-color: #ff8f88; box-shadow: 0 0 0 3px rgba(255, 143, 136, 0.12); }
 		button {
 			padding: 12px 26px;
 			border: 0;
@@ -71,7 +72,7 @@
 		button:hover { filter: brightness(1.06); transform: translateY(-1px); }
 		button:disabled { cursor: wait; opacity: 0.65; transform: none; }
 		input:focus-visible, button:focus-visible { outline: 3px solid rgba(140, 240, 206, 0.42); outline-offset: 2px; }
-		[role="alert"] { margin: 14px 4px 0; color: #ffaaa4; }
+		#error-message { margin: 14px 0 0; padding: 12px 14px; border: 1px solid rgba(255, 143, 136, 0.28); border-radius: 10px; background: rgba(255, 143, 136, 0.09); color: #ffc0bb; line-height: 1.5; }
 		[hidden] { display: none !important; }
 
 		.progress-panel { margin-top: 18px; padding: 18px 20px; }
@@ -121,11 +122,11 @@
 			<form id="analyze-form" method="post" action="/">
 				<div class="field">
 					<label for="url">Web page URL</label>
-					<input id="url" name="url" type="url" placeholder="https://example.com" value="{{.URL}}" required>
+					<input id="url" name="url" type="url" placeholder="https://example.com" value="{{.URL}}" aria-describedby="error-message" required>
 				</div>
 				<button id="analyze-button" type="submit">Analyze page</button>
 			</form>
-			<p id="error-message" role="alert" {{if or (not .Error) .Result}}hidden{{end}}>{{.Error}}</p>
+			<p id="error-message" role="alert" aria-live="assertive" {{if or (not .Error) .Result}}hidden{{end}}>{{.Error}}</p>
 		</div>
 
 		<section id="analysis-progress" class="panel progress-panel" aria-labelledby="progress-title" hidden>
@@ -179,6 +180,7 @@
 			if (!window.fetch || !window.ReadableStream || !form) return;
 
 			const button = document.querySelector("#analyze-button");
+			const urlInput = document.querySelector("#url");
 			const errorMessage = document.querySelector("#error-message");
 			const progressSection = document.querySelector("#analysis-progress");
 			const progressTitle = document.querySelector("#progress-title");
@@ -187,11 +189,28 @@
 			const resultsSection = document.querySelector("#analysis-results");
 			const resultsNotice = document.querySelector("#results-notice");
 			const resultStatus = document.querySelector("#result-status");
+			const errorMessages = Object.freeze({
+				invalid_url: "Enter a complete website address, for example https://example.com.",
+				missing_hostname: "Enter a URL that includes a website hostname.",
+				unsupported_scheme: "Only HTTP and HTTPS website addresses are supported.",
+				page_access_denied: "This website blocked the analysis request.",
+				page_not_found: "We couldn't find that page. Check the address and try again.",
+				connection_timeout: "The website took too long to respond. Please try again.",
+				rate_limited: "The website is receiving too many requests. Wait a moment and try again.",
+				page_unavailable: "The website is temporarily unavailable. Please try again later.",
+				page_rejected: "The website rejected the request. Check the address and try again.",
+				connection_failed: "We couldn't connect to that website. Check the address or try again later.",
+				analysis_timeout: "The analysis took too long. Please try again.",
+				partial_timeout: "The analysis could not finish in time, but here is what we found.",
+				analysis_failed: "Something went wrong while analyzing this page. Please try again.",
+				unable_to_start: "We couldn't start the analysis. Please try again."
+			});
 
 			form.addEventListener("submit", async (event) => {
 				event.preventDefault();
 				button.disabled = true;
 				button.textContent = "Analyzing…";
+				urlInput.removeAttribute("aria-invalid");
 				errorMessage.hidden = true;
 				resultsSection.hidden = true;
 				resultsNotice.hidden = true;
@@ -205,7 +224,7 @@
 						method: "POST",
 						body: new URLSearchParams(new FormData(form))
 					});
-					if (!response.ok || !response.body) throw new Error("Unable to start analysis.");
+					if (!response.ok || !response.body) throw new Error(errorMessages.unable_to_start);
 
 					const reader = response.body.getReader();
 					const decoder = new TextDecoder();
@@ -223,8 +242,10 @@
 						if (done) break;
 					}
 				} catch (error) {
-					errorMessage.textContent = error.message || "Analysis failed.";
+					errorMessage.textContent = error.message || errorMessages.analysis_failed;
 					errorMessage.hidden = false;
+					urlInput.setAttribute("aria-invalid", "true");
+					urlInput.focus();
 					progressSection.hidden = true;
 				} finally {
 					button.disabled = false;
@@ -244,11 +265,11 @@
 					progressCount.textContent = `${event.completed.toLocaleString()} / ${event.total.toLocaleString()}`;
 					return;
 				}
-				if (event.type === "error") throw new Error(event.message);
+				if (event.type === "error") throw new Error(messageFor(event));
 				if (event.type === "partial") {
 					progressTitle.textContent = "Analysis timed out";
 					showResult(event.result, false);
-					resultsNotice.textContent = event.message;
+					resultsNotice.textContent = messageFor(event);
 					resultsNotice.hidden = false;
 					return;
 				}
@@ -278,6 +299,10 @@
 
 			function setText(id, value) {
 				document.getElementById(id).textContent = value;
+			}
+
+			function messageFor(event) {
+				return errorMessages[event.code] || event.message || errorMessages.analysis_failed;
 			}
 		})();
 	</script>

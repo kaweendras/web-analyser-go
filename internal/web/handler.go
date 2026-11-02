@@ -5,7 +5,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -42,6 +41,7 @@ type pageData struct {
 
 type streamEvent struct {
 	Type      string           `json:"type"`
+	Code      string           `json:"code,omitempty"`
 	Message   string           `json:"message,omitempty"`
 	Completed *int             `json:"completed,omitempty"`
 	Total     *int             `json:"total,omitempty"`
@@ -80,7 +80,8 @@ func (h *Handler) servePage(w http.ResponseWriter, r *http.Request) {
 		result, err := h.analyzer.Analyze(analysisContext, data.URL)
 		data.Result = result
 		if err != nil {
-			data.Error = analysisMessage(err, result != nil)
+			slog.Warn("Analysis failed", "error", err)
+			data.Error = classifyAnalysisError(err, result != nil).Message
 		}
 	default:
 		w.Header().Set("Allow", "GET, POST")
@@ -174,13 +175,16 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		slog.Warn("Streamed analysis failed", "error", err)
+		clientError := classifyAnalysisError(err, result != nil)
 		eventType := "error"
 		if result != nil {
 			eventType = "partial"
 		}
 		event := streamEvent{
 			Type:    eventType,
-			Message: analysisMessage(err, result != nil),
+			Code:    clientError.Code,
+			Message: clientError.Message,
 			Result:  result,
 		}
 		if result != nil && hasProgress {
@@ -204,14 +208,4 @@ func parseSubmittedURL(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func intValue(value int) *int {
 	return &value
-}
-
-func analysisMessage(err error, hasPartialResult bool) string {
-	if errors.Is(err, context.DeadlineExceeded) {
-		if hasPartialResult {
-			return "Analysis timed out before every link could be checked. Here is what was analyzed before the timeout."
-		}
-		return "Analysis timed out before the page could be analyzed. Please try again."
-	}
-	return err.Error()
 }

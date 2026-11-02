@@ -95,19 +95,26 @@ func TestAnalyzePage(t *testing.T) {
 
 func TestValidateWebURL(t *testing.T) {
 	tests := []struct {
-		value   string
-		wantErr bool
+		value    string
+		wantCode string
 	}{
 		{value: "https://example.com/path"},
 		{value: "http://example.com"},
-		{value: "example.com", wantErr: true},
-		{value: "https:///path", wantErr: true},
-		{value: "ftp://example.com", wantErr: true},
+		{value: "example.com", wantCode: "invalid_url"},
+		{value: "https:///path", wantCode: "missing_hostname"},
+		{value: "ftp://example.com", wantCode: "unsupported_scheme"},
 	}
 	for _, test := range tests {
 		_, err := validateWebURL(test.value)
-		if (err != nil) != test.wantErr {
-			t.Errorf("validateWebURL(%q) error = %v, wantErr %v", test.value, err, test.wantErr)
+		if test.wantCode == "" {
+			if err != nil {
+				t.Errorf("validateWebURL(%q) error = %v, want nil", test.value, err)
+			}
+			continue
+		}
+		var validationError *ValidationError
+		if !errors.As(err, &validationError) || validationError.Code != test.wantCode {
+			t.Errorf("validateWebURL(%q) error = %v, want ValidationError code %q", test.value, err, test.wantCode)
 		}
 	}
 }

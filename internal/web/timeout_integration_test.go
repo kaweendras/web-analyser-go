@@ -87,7 +87,10 @@ func TestAnalysisTimeoutStreamsPartialResults(t *testing.T) {
 	if *partial.Completed != partial.Result.CheckedLinks || *partial.Total != 3 {
 		t.Errorf("partial progress = %d/%d, checked links = %d", *partial.Completed, *partial.Total, partial.Result.CheckedLinks)
 	}
-	if !strings.Contains(partial.Message, "Here is what was analyzed before the timeout.") {
+	if partial.Code != "partial_timeout" {
+		t.Errorf("partial code = %q, want partial_timeout", partial.Code)
+	}
+	if !strings.Contains(partial.Message, "here is what we found.") {
 		t.Errorf("partial message = %q", partial.Message)
 	}
 }
