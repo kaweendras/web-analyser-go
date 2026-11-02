@@ -302,7 +302,8 @@
 			}
 
 			function messageFor(event) {
-				return errorMessages[event.code] || event.message || errorMessages.analysis_failed;
+				const message = errorMessages[event.code] || event.message || errorMessages.analysis_failed;
+				return event.statusCode ? `HTTP ${event.statusCode}: ${message}` : message;
 			}
 		})();
 	</script>

@@ -40,12 +40,13 @@ type pageData struct {
 }
 
 type streamEvent struct {
-	Type      string           `json:"type"`
-	Code      string           `json:"code,omitempty"`
-	Message   string           `json:"message,omitempty"`
-	Completed *int             `json:"completed,omitempty"`
-	Total     *int             `json:"total,omitempty"`
-	Result    *analyzer.Result `json:"result,omitempty"`
+	Type       string           `json:"type"`
+	Code       string           `json:"code,omitempty"`
+	Message    string           `json:"message,omitempty"`
+	StatusCode int              `json:"statusCode,omitempty"`
+	Completed  *int             `json:"completed,omitempty"`
+	Total      *int             `json:"total,omitempty"`
+	Result     *analyzer.Result `json:"result,omitempty"`
 }
 
 // NewHandler creates the application's HTTP handler.
@@ -81,7 +82,7 @@ func (h *Handler) servePage(w http.ResponseWriter, r *http.Request) {
 		data.Result = result
 		if err != nil {
 			slog.Warn("Analysis failed", "error", err)
-			data.Error = classifyAnalysisError(err, result != nil).Message
+			data.Error = classifyAnalysisError(err, result != nil).displayMessage()
 		}
 	default:
 		w.Header().Set("Allow", "GET, POST")
@@ -182,10 +183,11 @@ func (h *Handler) streamAnalysis(w http.ResponseWriter, r *http.Request) {
 			eventType = "partial"
 		}
 		event := streamEvent{
-			Type:    eventType,
-			Code:    clientError.Code,
-			Message: clientError.Message,
-			Result:  result,
+			Type:       eventType,
+			Code:       clientError.Code,
+			Message:    clientError.Message,
+			StatusCode: clientError.StatusCode,
+			Result:     result,
 		}
 		if result != nil && hasProgress {
 			event.Completed = intValue(latestCompleted)

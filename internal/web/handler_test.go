@@ -120,6 +120,24 @@ func TestHandlerDisplaysAnalyzerError(t *testing.T) {
 	}
 }
 
+func TestHandlerPrefixesHTTPStatusForHTMLResponse(t *testing.T) {
+	handler := NewHandler(&fakeAnalyzer{err: &analyzer.FetchError{
+		StatusCode: http.StatusNotFound,
+		Err:        errors.New(http.StatusText(http.StatusNotFound)),
+	}}, time.Second)
+	form := url.Values{"url": {"https://example.com/missing"}}
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	body := response.Body.String()
+	if !strings.Contains(body, "HTTP 404:") || !strings.Contains(body, "find that page") {
+		t.Errorf("response does not contain the friendly status message: %s", body)
+	}
+}
+
 func TestHandlerExplainsAnalysisTimeout(t *testing.T) {
 	handler := NewHandler(&fakeAnalyzer{err: context.DeadlineExceeded}, time.Second)
 	form := url.Values{"url": {"https://example.com"}}
@@ -252,5 +270,25 @@ func TestHandlerStreamsFriendlyErrorWithoutInternalDetails(t *testing.T) {
 	}
 	if strings.Contains(body, "internal connection details") {
 		t.Errorf("error stream exposes internal details: %s", body)
+	}
+}
+
+func TestHandlerStreamsHTTPStatusCode(t *testing.T) {
+	handler := NewHandler(&fakeAnalyzer{err: &analyzer.FetchError{
+		StatusCode: http.StatusForbidden,
+		Err:        errors.New(http.StatusText(http.StatusForbidden)),
+	}}, time.Second)
+	form := url.Values{"url": {"https://example.com/private"}}
+	request := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	body := response.Body.String()
+	for _, expected := range []string{`"code":"page_access_denied"`, `"statusCode":403`, "This website blocked the analysis request."} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("error stream does not contain %q\nbody: %s", expected, body)
+		}
 	}
 }

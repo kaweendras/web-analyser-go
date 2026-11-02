@@ -94,3 +94,41 @@ func TestAnalysisTimeoutStreamsPartialResults(t *testing.T) {
 		t.Errorf("partial message = %q", partial.Message)
 	}
 }
+
+func TestAnalysisHTTPStatusStreamsFriendlyError(t *testing.T) {
+	targetServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		response.WriteHeader(http.StatusForbidden)
+	}))
+	defer targetServer.Close()
+
+	client := &http.Client{Timeout: time.Second}
+	handler := NewHandler(analyzer.New(client, linkchecker.New(client, 1)), time.Second)
+	form := url.Values{"url": {targetServer.URL}}
+	request := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	var errorEvent streamEvent
+	scanner := bufio.NewScanner(response.Body)
+	for scanner.Scan() {
+		var event streamEvent
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			t.Fatalf("decode stream event: %v", err)
+		}
+		if event.Type == "error" {
+			errorEvent = event
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	if errorEvent.Code != "page_access_denied" || errorEvent.StatusCode != http.StatusForbidden {
+		t.Errorf("error event = %+v, want page_access_denied with status 403", errorEvent)
+	}
+	if errorEvent.Message != "This website blocked the analysis request." {
+		t.Errorf("message = %q", errorEvent.Message)
+	}
+}
