@@ -12,6 +12,19 @@ A small Go web application that accepts a URL and reports useful information abo
 - Streams link-checking progress to a responsive web interface.
 - Handles redirects, network failures, invalid URLs, and analysis timeouts.
 
+## Technologies used
+
+| Technology | Purpose |
+| --- | --- |
+| Go 1.27.3 | Application language and concurrency support |
+| `net/http` | HTTP server, page requests, and link checks |
+| `html/template` and `embed` | Server-rendered and embedded web interface |
+| `golang.org/x/net/html` | HTML parsing and document inspection |
+| HTML, CSS, and JavaScript | Responsive browser interface |
+| Fetch API and NDJSON | Live progress and result streaming |
+| Docker | Reproducible container build and runtime |
+| GitHub Actions | Automated formatting, vetting, testing, and build checks |
+
 ## Project structure
 
 ```text
@@ -23,13 +36,18 @@ Dockerfile                 Multi-stage container build
 Makefile                   Common development commands
 ```
 
+## Prerequisites
+
+For local development:
+
+- Git, to clone the repository.
+- Go 1.27.3 or newer.
+- An available local port `8080`.
+- Internet access when analyzing public websites.
+
+For the container workflow, install Docker Desktop or Docker Engine. Go does not need to be installed when running only with Docker.
+
 ## Run locally
-
-### Requirements
-
-- Go 1.27 or newer
-
-### Steps
 
 ```bash
 git clone https://github.com/kaweendras/web-analyser-go.git
@@ -50,18 +68,37 @@ On Windows PowerShell, the output executable will be `web-analyser.exe`.
 
 ## Run with Docker
 
-### Requirements
-
-- Docker Desktop or Docker Engine
-
-### Steps
-
 ```bash
 docker build -t web-analyser .
 docker run --rm -p 8080:8080 web-analyser
 ```
 
 Then open [http://localhost:8080](http://localhost:8080). The container runs as a non-root user and includes the CA certificates required for HTTPS checks.
+
+## Architecture
+
+![Web Page Analyzer architecture](docs/architecture.svg)
+
+The HTTP handler serves the embedded interface and passes submitted URLs to the analyzer. The analyzer parses the target page, extracts unique links, and sends them to the bounded worker pool. Progress and final or partial results are streamed back to the browser.
+
+## API endpoints
+
+| Method | Endpoint | Request | Response |
+| --- | --- | --- | --- |
+| `GET` | `/` | None | HTML analyzer interface |
+| `POST` | `/` | Form field `url` | HTML page containing the result or error |
+| `POST` | `/api/analyze` | Form field `url` | `application/x-ndjson` progress and result stream |
+
+The URL must include an `http://` or `https://` scheme. The streaming endpoint can emit `status`, `progress`, `result`, `partial`, or `error` events. A `partial` event contains the data collected before an analysis timeout.
+
+Example request:
+
+```bash
+curl -N -X POST \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "url=https://example.com" \
+  http://localhost:8080/api/analyze
+```
 
 ## Tests
 
@@ -90,8 +127,4 @@ Tests use local `httptest` servers and fake dependencies rather than making requ
 - Add scheduled scans, notifications, and comparisons between previous results.
 - Support JavaScript-rendered pages through an optional browser-based analyzer.
 - Add authentication, API rate limiting, and private-network URL protection before public deployment.
-- Add continuous integration for tests, static analysis, and Docker image builds.
-
-## Architecture diagram
-
-![Web Page Analyzer architecture](docs/architecture.svg)
+- Extend continuous integration with Docker image builds and vulnerability scanning.
